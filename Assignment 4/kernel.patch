@@ -1,0 +1,138 @@
+--- /home/kern/stock/linux-5.14.3/kernel/sys.c  2021-09-12 12:31:00.000000000 +0530
++++ /home/kern/linux-5.14.3/kernel/sys.c        2022-01-04 04:24:11.453226053 +0530
+@@ -200,6 +200,135 @@ out:
+        return error;
+ }
+ 
++/*
++This is our code for the two system calls, queue, and semaphores and mutex
++for assingment 4
++Utkarsh Arora
++2020143
++*/
++
++/*
++Creating our semaphores
++*/
++struct semaphore curr_used; //This is our mutex
++struct semaphore empty;
++struct semaphore full;
++
++void create_our_semaphore(void){
++       sema_init(&curr_used, 1);
++       sema_init(&empty, 8); //Max size of the queue is 8
++       sema_init(&full, 0);
++}
++
++
++/*
++Code for queue
++Reused from Refreshers Assignment 2
++Instead of malloc, kmalloc will be used here
++*/
++
++/*Structure for a linked list node*/
++struct Node{
++    long data;
++    struct Node *next;
++};
++
++struct Node *head = NULL;
++
++/*Function to enqueue an element into the queue*/
++void enqueue(long data){
++    //We add a new node behind the head node
++       down(&curr_used);
++       down(&empty);
++
++    struct Node *temp;
++    temp = (struct Node*)kmalloc(sizeof(struct Node),GFP_KERNEL);
++    temp->data=data;
++    temp->next = head;
++    head=temp;
++
++       up(&full);
++       up(&curr_used);
++    return;
++}
++
++/*Function to dequeue an element from the queue*/
++long dequeue(void){
++       down(&curr_used);
++       down(&full);
++
++    long popped;
++    struct Node *curr = head;
++    //If the queue is empty
++    if (head==NULL){
++        popped = NULL;    
++    }
++    //In case queue only has a single element
++    else if (curr->next==NULL){
++        popped = curr->data;
++        head = NULL;
++    }
++    else{
++        //We first traverse to the node before the tail node
++        while (curr->next->next!=NULL){
++            curr=curr->next;
++        }
++        //We free and nullify the tail node. And we get the data and print it
++        popped=curr->next->data;
++        kfree(curr->next);
++        curr->next = NULL;       
++    }
++
++       up(&empty);
++       up(&curr_used);
++       return popped;
++
++}
++
++
++
++/*We have to define two system calls - reader() and writer()*/
++
++int counter = 0;
++
++SYSCALL_DEFINE0(reader)
++{
++       //System call for reader
++       if (counter==0){
++               create_our_semaphore();
++               counter++;
++       }
++
++       long data;
++       data = dequeue();
++       return data;
++}
++
++SYSCALL_DEFINE1(writer, long, data)
++{
++       //System call for writer
++       if (counter==0){
++               create_our_semaphore();
++               counter++;
++       }
++
++       enqueue(data);
++
++       return 0;
++}
++
++SYSCALL_DEFINE4(kernel_2d_memcpy, int __user *, src, int __user *, dest, int, row, int, col)
++{
++       //User (Utkarsh Arora, 2020143) defined system call
++       int bSize = sizeof(int)*(row*col);
++       int *p;
++       p = (int *)kcalloc(row*col, sizeof(int),GFP_KERNEL);
++       __copy_from_user(p,src,bSize);
++       __copy_to_user(dest,p,bSize);
++       return 0;
++}
++
++
+ SYSCALL_DEFINE3(setpriority, int, which, int, who, int, niceval)
+ {
+        struct task_struct *g, *p;
