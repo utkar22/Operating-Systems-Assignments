@@ -1,0 +1,21 @@
+diff -rupN /home/kern/stock/linux-5.14.3/kernel/sys.c /home/kern/linux-5.14.3/kernel/sys.c
+--- /home/kern/stock/linux-5.14.3/kernel/sys.c	2021-09-12 12:31:00.000000000 +0530
++++ /home/kern/linux-5.14.3/kernel/sys.c	2021-11-26 20:17:41.463339889 +0530
+@@ -200,6 +200,17 @@ out:
+ 	return error;
+ }
+ 
++SYSCALL_DEFINE4(kernel_2d_memcpy, int __user *, src, int __user *, dest, int, row, int, col)
++{
++	//User (Utkarsh Arora, 2020143) defined system call
++	int bSize = sizeof(int)*(row*col);
++	int *p;
++	p = (int *)kcalloc(row*col, sizeof(int),GFP_KERNEL);
++	__copy_from_user(p,src,bSize);
++	__copy_to_user(dest,p,bSize);
++	return 0;
++}
++
+ SYSCALL_DEFINE3(setpriority, int, which, int, who, int, niceval)
+ {
+ 	struct task_struct *g, *p;
